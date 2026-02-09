@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
@@ -153,7 +153,8 @@ async function fazerLogin() {
     }
     
     try {
-        const response = await fetch('http://localhost:3000/api/login/servidor', {
+        // ✅ LINHA CORRIGIDA: Remove 'localhost:3000'
+        const response = await fetch('/api/login-servidor', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -164,10 +165,7 @@ async function fazerLogin() {
         const result = await response.json();
         
         if (result.success) {
-            // Salvar informações do servidor na sessão
             sessionStorage.setItem('servidorLogado', JSON.stringify(result.usuario));
-            
-            // Redirecionar para o painel do servidor
             window.location.href = 'servidor.html';
         } else {
             errorMsg.textContent = result.error || 'RI ou senha incorretos!';
