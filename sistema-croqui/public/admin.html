@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
@@ -426,32 +426,18 @@ async function loginAdmin() {
     const senha = document.getElementById('adminPass').value;
     const errorMsg = document.getElementById('loginError');
 
-    try {
-        const response = await fetch('http://localhost:3000/api/login/admin', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ usuario, senha })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            sessionStorage.setItem('adminLogado', 'true');
-            document.getElementById('loginAdmin').style.display = 'none';
-            document.getElementById('painelAdmin').style.display = 'block';
-            carregarDados();
-        } else {
-            errorMsg.textContent = result.error || 'Credenciais inválidas';
-            errorMsg.style.display = 'block';
-            setTimeout(() => {
-                errorMsg.style.display = 'none';
-            }, 3000);
-        }
-    } catch (error) {
-        errorMsg.textContent = 'Erro de conexão com o servidor';
+    // Login local (sem chamada de API para localhost)
+    if (usuario === ADMIN_CREDENTIALS.usuario && senha === ADMIN_CREDENTIALS.senha) {
+        sessionStorage.setItem('adminLogado', 'true');
+        document.getElementById('loginAdmin').style.display = 'none';
+        document.getElementById('painelAdmin').style.display = 'block';
+        carregarDados();
+    } else {
+        errorMsg.textContent = 'Credenciais inválidas';
         errorMsg.style.display = 'block';
+        setTimeout(() => {
+            errorMsg.style.display = 'none';
+        }, 3000);
     }
 }
 
@@ -468,7 +454,8 @@ async function carregarDados() {
 
 async function carregarServidores() {
     try {
-        const response = await fetch('http://localhost:3000/api/admin/servidores');
+        // ✅ CORREÇÃO: Caminho relativo em vez de localhost:3000
+        const response = await fetch('/api/servidores');
         const result = await response.json();
         
         if (result.success) {
@@ -497,28 +484,37 @@ async function carregarServidores() {
         }
     } catch (error) {
         console.error('Erro ao carregar servidores:', error);
+        document.getElementById('tabelaServidores').innerHTML = `
+            <tr><td colspan="4" style="text-align:center;color:#666;padding:40px;">
+                <i class="fas fa-exclamation-triangle"></i> Erro ao carregar servidores.
+                <br><small>Verifique se a API está funcionando.</small>
+            </td></tr>`;
     }
 }
 
 async function carregarEstatisticas() {
     try {
-        const response = await fetch('http://localhost:3000/api/solicitacoes');
+        // ✅ CORREÇÃO: Caminho relativo
+        const response = await fetch('/api/solicitacoes');
         const result = await response.json();
         
         if (result.success) {
-            document.getElementById('totalSolicitacoes').textContent = result.total;
+            document.getElementById('totalSolicitacoes').textContent = result.total || result.dados.length;
             
             const pendentes = result.dados.filter(s => s.status === 'pendente').length;
             document.getElementById('pendentes').textContent = pendentes;
         }
     } catch (error) {
         console.error('Erro ao carregar estatísticas:', error);
+        document.getElementById('totalSolicitacoes').textContent = '0';
+        document.getElementById('pendentes').textContent = '0';
     }
 }
 
 async function carregarTodasSolicitacoes() {
     try {
-        const response = await fetch('http://localhost:3000/api/solicitacoes');
+        // ✅ CORREÇÃO: Caminho relativo
+        const response = await fetch('/api/solicitacoes');
         const result = await response.json();
         
         if (result.success) {
@@ -549,7 +545,7 @@ async function carregarTodasSolicitacoes() {
                 }
 
                 tr.innerHTML = `
-                    <td><strong>${solicitacao.numero}</strong></td>
+                    <td><strong>${solicitacao.numero || solicitacao.id}</strong></td>
                     <td>${solicitacao.tipo}</td>
                     <td>${solicitacao.nome}</td>
                     <td>${new Date(solicitacao.dataCriacao).toLocaleDateString('pt-BR')}</td>
@@ -561,6 +557,10 @@ async function carregarTodasSolicitacoes() {
         }
     } catch (error) {
         console.error('Erro ao carregar solicitações:', error);
+        document.querySelector('#tabelaSolicitacoes tbody').innerHTML = `
+            <tr><td colspan="6" style="text-align:center;color:#666;padding:40px;">
+                <i class="fas fa-exclamation-triangle"></i> Erro ao carregar solicitações.
+            </td></tr>`;
     }
 }
 
@@ -576,7 +576,8 @@ async function adicionarServidor() {
     }
 
     try {
-        const response = await fetch('http://localhost:3000/api/admin/servidores', {
+        // ✅ CORREÇÃO: Caminho relativo
+        const response = await fetch('/api/servidores', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -621,11 +622,22 @@ async function editarServidor(id, nomeAtual, riAtual) {
     }
 
     try {
-        // Nota: API atual não suporta edição individual, então precisamos recarregar todos
-        alert('Funcionalidade de edição completa requer implementação adicional na API.');
-        await carregarServidores();
+        // ✅ CORREÇÃO: Caminho relativo
+        const response = await fetch(`/api/servidores/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dados)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Servidor atualizado com sucesso!');
+            await carregarServidores();
+        } else {
+            alert('Erro ao atualizar: ' + result.error);
+        }
     } catch (error) {
-        alert('Erro ao editar servidor.');
+        alert('Erro de conexão.');
         console.error(error);
     }
 }
@@ -636,11 +648,20 @@ async function excluirServidor(id) {
     }
 
     try {
-        // Nota: API atual não suporta exclusão, então apenas recarrega
-        alert('Funcionalidade de exclusão completa requer implementação adicional na API.');
-        await carregarServidores();
+        // ✅ CORREÇÃO: Caminho relativo
+        const response = await fetch(`/api/servidores/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert('Servidor excluído com sucesso!');
+            await carregarServidores();
+        } else {
+            alert('Erro ao excluir: ' + result.error);
+        }
     } catch (error) {
-        alert('Erro ao excluir servidor.');
+        alert('Erro de conexão.');
         console.error(error);
     }
 }
