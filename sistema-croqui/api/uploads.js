@@ -1,9 +1,9 @@
-﻿import { supabase } from '../supabase-config.js'
+import { supabase } from '../supabase-config.js'
 
 export const config = {
   api: {
     bodyParser: {
-      sizeLimit: '10mb' // Limite de 10MB para PDFs
+      sizeLimit: '10mb'
     }
   }
 }
@@ -29,23 +29,25 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, error: 'Nome do arquivo e conteúdo são obrigatórios' })
     }
 
-    // Converter base64 para buffer
+    // Verificar se o bucket existe (supondo que seja 'pdfs-croqui')
+    // ⚠️ Certifique-se de que o bucket 'pdfs-croqui' foi criado no Supabase Storage
     const buffer = Buffer.from(fileContent, 'base64')
     
-    // Fazer upload para o Supabase Storage
+    const caminhoArquivo = `comprovantes/${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`
+    
     const { data, error } = await supabase.storage
       .from('pdfs-croqui')
-      .upload(`comprovantes/${Date.now()}-${filename}`, buffer, {
+      .upload(caminhoArquivo, buffer, {
         contentType: 'application/pdf',
         upsert: false
       })
 
     if (error) {
-      console.error('Erro no upload:', error)
-      return res.status(500).json({ success: false, error: error.message })
+      console.error('Erro no upload para o Supabase Storage:', error)
+      return res.status(500).json({ success: false, error: 'Falha no upload do arquivo: ' + error.message })
     }
 
-    // Obter URL pública do arquivo
+    // Obter URL pública
     const { data: { publicUrl } } = supabase.storage
       .from('pdfs-croqui')
       .getPublicUrl(data.path)
@@ -55,12 +57,13 @@ export default async function handler(req, res) {
       arquivo: {
         nomeOriginal: filename,
         url: publicUrl,
-        caminho: data.path
+        caminho: data.path,
+        tamanho: buffer.length
       }
     })
     
   } catch (error) {
-    console.error('Erro interno:', error)
-    return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
+    console.error('Erro interno no upload:', error)
+    return res.status(500).json({ success: false, error: 'Erro interno do servidor durante o upload' })
   }
 }
