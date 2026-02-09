@@ -1,4 +1,4 @@
-﻿import { supabase } from '../supabase-config.js'
+import { supabase } from '../supabase-config.js'
 
 export default async function handler(req, res) {
   // Configurar CORS
@@ -11,12 +11,23 @@ export default async function handler(req, res) {
     return res.status(200).end()
   }
 
+  // 🔧 EXTRAIR ID DA URL (Suporte a /api/solicitacoes/123)
+  const urlParts = req.url.split('/')
+  let idFromPath = null
+  // A URL será algo como '/api/solicitacoes' ou '/api/solicitacoes/123'
+  if (urlParts.length >= 4 && urlParts[3] !== '') {
+    idFromPath = urlParts[3]
+  }
+
   // POST: Criar nova solicitação
   if (req.method === 'POST') {
     try {
       const { tipo, nome, cpf, iptu, endereco, numeroImovel, bairro, quadra, lote, comprovacaoUrl } = req.body
       
-      // Gerar número da solicitação
+      if (!tipo || !nome || !iptu) {
+        return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando' })
+      }
+      
       const numero = `SOL-${Date.now().toString().slice(-6)}`
       
       const { data, error } = await supabase
@@ -40,7 +51,7 @@ export default async function handler(req, res) {
         .select()
 
       if (error) {
-        console.error('Erro Supabase:', error)
+        console.error('Erro ao criar solicitação:', error)
         return res.status(500).json({ success: false, error: error.message })
       }
 
@@ -52,7 +63,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // GET: Listar solicitações
+  // GET: Listar solicitações (todas ou por status)
   if (req.method === 'GET') {
     try {
       const { status } = req.query
@@ -65,20 +76,27 @@ export default async function handler(req, res) {
       const { data, error } = await query
 
       if (error) {
+        console.error('Erro ao buscar solicitações:', error)
         return res.status(500).json({ success: false, error: error.message })
       }
 
       return res.status(200).json({ success: true, total: data.length, dados: data })
       
     } catch (error) {
+      console.error('Erro interno:', error)
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
     }
   }
 
-  // PUT: Atualizar solicitação
+  // PUT: Atualizar solicitação (usa ID do caminho ou da query)
   if (req.method === 'PUT') {
     try {
-      const { id } = req.query
+      const solicitacaoId = idFromPath || req.query.id
+      
+      if (!solicitacaoId) {
+        return res.status(400).json({ success: false, error: 'ID da solicitação é obrigatório' })
+      }
+
       const updates = req.body
 
       const { data, error } = await supabase
@@ -87,10 +105,11 @@ export default async function handler(req, res) {
           ...updates,
           data_atualizacao: new Date().toISOString()
         })
-        .eq('id', id)
+        .eq('id', solicitacaoId)
         .select()
 
       if (error) {
+        console.error('Erro ao atualizar solicitação:', error)
         return res.status(500).json({ success: false, error: error.message })
       }
 
@@ -101,6 +120,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, solicitacao: data[0] })
       
     } catch (error) {
+      console.error('Erro interno:', error)
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
     }
   }
