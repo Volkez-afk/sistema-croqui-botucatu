@@ -1,27 +1,35 @@
-﻿import { supabase } from '../supabase-config.js'
+// api/login-servidor.js - VERSÃO CORRIGIDA
+import { supabase } from '../supabase-config.js'
+import { corsMiddleware, parseJSONBody } from './_middleware.js'
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', true)
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version')
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end()
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, error: 'Método não permitido' })
-  }
-
+async function loginHandler(req, res) {
+  console.log('🔐 Login request:', req.method, new Date().toISOString())
+  
   try {
-    const { ri, senha } = req.body
-
-    if (!ri || !senha) {
-      return res.status(400).json({ success: false, error: 'RI e senha são obrigatórios' })
+    await parseJSONBody(req)
+    
+    if (req.method !== 'POST') {
+      return res.status(405).json({ 
+        success: false, 
+        error: 'Método não permitido',
+        allowed: ['POST']
+      })
     }
 
-    // Buscar servidor no banco de dados
+    const { ri, senha } = req.body
+
+    // Validação
+    if (!ri || !senha) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'RI e senha são obrigatórios',
+        received: { ri: !!ri, senha: !!senha }
+      })
+    }
+
+    console.log('🔄 Tentando login para RI:', ri)
+
+    // Buscar servidor
     const { data, error } = await supabase
       .from('servidores')
       .select('*')
@@ -29,20 +37,49 @@ export default async function handler(req, res) {
       .eq('senha', senha)
       .single()
 
-    if (error || !data) {
-      return res.status(401).json({ success: false, error: 'RI ou senha incorretos' })
+    if (error) {
+      console.error('❌ Erro no login:', error.message)
+      return res.status(401).json({ 
+        success: false, 
+        error: 'Credenciais inválidas'
+      })
+    }
+
+    if (!data) {
+      console.log('⚠️  Servidor não encontrado para RI:', ri)
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Servidor não encontrado'
+      })
+    }
+
+    console.log('✅ Login bem-sucedido para:', data.nome)
+
+    // NÃO envie a senha de volta!
+    const usuario = {
+      id: data.id,
+      ri: data.ri,
+      nome: data.nome,
+      tipo: 'servidor',
+      data_criacao: data.data_criacao
     }
 
     return res.status(200).json({
       success: true,
-      usuario: {
-        ri: data.ri,
-        nome: data.nome,
-        tipo: 'servidor'
-      }
+      usuario,
+      token: Buffer.from(`${data.id}:${data.ri}`).toString('base64'), // Token simples
+      message: 'Login realizado com sucesso'
     })
-    
+
   } catch (error) {
-    return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
+    console.error('💥 Erro interno:', error)
+    return res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    })
   }
 }
+
+// Aplicar middleware CORS
+export default corsMiddleware(loginHandler)
