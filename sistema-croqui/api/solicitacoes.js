@@ -1,6 +1,9 @@
 import { supabase } from '../supabase-config.js'
 
 export default async function handler(req, res) {
+  // 🔧 ADICIONADO: Log para debug
+  console.log(`📄 Solicitações - ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  
   // Configurar CORS
   res.setHeader('Access-Control-Allow-Credentials', true)
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -24,7 +27,10 @@ export default async function handler(req, res) {
     try {
       const { tipo, nome, cpf, iptu, endereco, numeroImovel, bairro, quadra, lote, comprovacaoUrl } = req.body
       
+      console.log('🔄 Criando nova solicitação para:', nome);
+      
       if (!tipo || !nome || !iptu) {
+        console.log('❌ Campos obrigatórios faltando');
         return res.status(400).json({ success: false, error: 'Campos obrigatórios faltando' })
       }
       
@@ -51,14 +57,15 @@ export default async function handler(req, res) {
         .select()
 
       if (error) {
-        console.error('Erro ao criar solicitação:', error)
+        console.error('❌ Erro ao criar solicitação:', error);
         return res.status(500).json({ success: false, error: error.message })
       }
 
+      console.log('✅ Solicitação criada:', data[0].numero);
       return res.status(200).json({ success: true, solicitacao: data[0] })
       
     } catch (error) {
-      console.error('Erro interno:', error)
+      console.error('💥 Erro interno:', error);
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
     }
   }
@@ -67,6 +74,8 @@ export default async function handler(req, res) {
   if (req.method === 'GET') {
     try {
       const { status } = req.query
+      console.log('🔄 Buscando solicitações, status:', status || 'todos');
+      
       let query = supabase.from('solicitacoes').select('*').order('data_criacao', { ascending: false })
 
       if (status) {
@@ -76,14 +85,15 @@ export default async function handler(req, res) {
       const { data, error } = await query
 
       if (error) {
-        console.error('Erro ao buscar solicitações:', error)
+        console.error('❌ Erro ao buscar solicitações:', error);
         return res.status(500).json({ success: false, error: error.message })
       }
 
+      console.log(`✅ ${data.length} solicitações encontradas`);
       return res.status(200).json({ success: true, total: data.length, dados: data })
       
     } catch (error) {
-      console.error('Erro interno:', error)
+      console.error('💥 Erro interno:', error);
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
     }
   }
@@ -94,9 +104,11 @@ export default async function handler(req, res) {
       const solicitacaoId = idFromPath || req.query.id
       
       if (!solicitacaoId) {
+        console.log('❌ ID da solicitação é obrigatório');
         return res.status(400).json({ success: false, error: 'ID da solicitação é obrigatório' })
       }
 
+      console.log('🔄 Atualizando solicitação:', solicitacaoId);
       const updates = req.body
 
       const { data, error } = await supabase
@@ -109,21 +121,24 @@ export default async function handler(req, res) {
         .select()
 
       if (error) {
-        console.error('Erro ao atualizar solicitação:', error)
+        console.error('❌ Erro ao atualizar solicitação:', error);
         return res.status(500).json({ success: false, error: error.message })
       }
 
       if (!data || data.length === 0) {
+        console.error('❌ Solicitação não encontrada:', solicitacaoId);
         return res.status(404).json({ success: false, error: 'Solicitação não encontrada' })
       }
 
+      console.log('✅ Solicitação atualizada:', solicitacaoId);
       return res.status(200).json({ success: true, solicitacao: data[0] })
       
     } catch (error) {
-      console.error('Erro interno:', error)
+      console.error('💥 Erro interno:', error);
       return res.status(500).json({ success: false, error: 'Erro interno do servidor' })
     }
   }
 
+  console.warn('⚠️ Método não permitido:', req.method);
   return res.status(405).json({ success: false, error: 'Método não permitido' })
 }
