@@ -483,83 +483,289 @@ async function carregarServidores() {
             document.getElementById('totalServidores').textContent = result.dados.length;
         }
     } catch (error) {
-        console.error('Erro ao carregar servidores:', error);
+     const ADMIN_CREDENTIALS = {
+    usuario: "vinicius.megetto",
+    senha: "PMbtu2023"
+};
+
+// Configuração da API
+const API_BASE = window.location.origin; // Vai pegar a URL atual automaticamente
+const API_ENDPOINTS = {
+    servidores: '/api/servidores',
+    solicitacoes: '/api/solicitacoes',
+    upload: '/api/upload',
+    login: '/api/login-servidor'
+};
+
+// Função para log de debug
+function debugLog(message, data = null) {
+    const timestamp = new Date().toISOString();
+    const logMsg = `[${timestamp}] ${message}`;
+    console.log(logMsg);
+    if (data) console.log('📊 Dados:', data);
+    
+    // Mostra no console do navegador de forma visível
+    const debugDiv = document.getElementById('debugConsole') || (() => {
+        const div = document.createElement('div');
+        div.id = 'debugConsole';
+        div.style.cssText = 'position:fixed;bottom:10px;right:10px;background:#333;color:#0f0;padding:10px;border-radius:5px;max-height:200px;overflow:auto;z-index:9999;font-size:12px;display:none;';
+        document.body.appendChild(div);
+        return div;
+    })();
+    
+    const debugDivElement = document.getElementById('debugConsole');
+    debugDivElement.innerHTML = `<div>${logMsg}</div>` + debugDivElement.innerHTML;
+    debugDivElement.style.display = 'block';
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const adminLogado = sessionStorage.getItem('adminLogado');
+    if (adminLogado === 'true') {
+        document.getElementById('loginAdmin').style.display = 'none';
+        document.getElementById('painelAdmin').style.display = 'block';
+        carregarDados();
+        
+        // Mostrar URL base para debug
+        debugLog(`URL Base: ${API_BASE}`);
+        debugLog(`API Endpoint: ${API_BASE}${API_ENDPOINTS.servidores}`);
+    }
+});
+
+async function loginAdmin() {
+    const usuario = document.getElementById('adminUser').value;
+    const senha = document.getElementById('adminPass').value;
+    const errorMsg = document.getElementById('loginError');
+
+    // Login local (sem chamada de API para localhost)
+    if (usuario === ADMIN_CREDENTIALS.usuario && senha === ADMIN_CREDENTIALS.senha) {
+        sessionStorage.setItem('adminLogado', 'true');
+        document.getElementById('loginAdmin').style.display = 'none';
+        document.getElementById('painelAdmin').style.display = 'block';
+        carregarDados();
+    } else {
+        errorMsg.textContent = 'Credenciais inválidas';
+        errorMsg.style.display = 'block';
+        setTimeout(() => {
+            errorMsg.style.display = 'none';
+        }, 3000);
+    }
+}
+
+function logoutAdmin() {
+    sessionStorage.removeItem('adminLogado');
+    window.location.href = 'index.html';
+}
+
+async function carregarDados() {
+    debugLog('🔍 Iniciando carregamento de dados...');
+    await carregarServidores();
+    await carregarEstatisticas();
+    await carregarTodasSolicitacoes();
+}
+
+async function carregarServidores() {
+    const url = `${API_BASE}${API_ENDPOINTS.servidores}`;
+    debugLog(`🔄 Buscando servidores: ${url}`);
+    
+    try {
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        debugLog(`📊 Resposta servidores: ${response.status} ${response.statusText}`);
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            debugLog('❌ Resposta não é JSON:', text.substring(0, 200));
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
+        
+        const result = await response.json();
+        debugLog(`✅ Servidores carregados: ${result.dados?.length || 0} registros`);
+        
+        if (result.success) {
+            const tbody = document.getElementById('tabelaServidores');
+            tbody.innerHTML = '';
+
+            if (result.dados && result.dados.length > 0) {
+                result.dados.forEach((servidor, index) => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${servidor.nome || 'Não informado'}</td>
+                        <td>${servidor.ri}</td>
+                        <td>••••••••</td>
+                        <td>
+                            <button class="btn-editar" onclick="editarServidor('${servidor.id}', '${servidor.nome}', '${servidor.ri}')">
+                                <i class="fas fa-edit"></i> Editar
+                            </button>
+                            <button class="btn-excluir" onclick="excluirServidor('${servidor.id}')">
+                                <i class="fas fa-trash"></i> Excluir
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+                document.getElementById('totalServidores').textContent = result.dados.length;
+            } else {
+                tbody.innerHTML = `
+                    <tr><td colspan="4" style="text-align:center;color:#666;padding:40px;">
+                        <i class="fas fa-inbox"></i> Nenhum servidor cadastrado.
+                    </td></tr>`;
+                document.getElementById('totalServidores').textContent = '0';
+            }
+        } else {
+            throw new Error(result.error || 'Erro desconhecido');
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar servidores:', error);
+        debugLog(`💥 Erro carregarServidores: ${error.message}`);
+        
         document.getElementById('tabelaServidores').innerHTML = `
-            <tr><td colspan="4" style="text-align:center;color:#666;padding:40px;">
+            <tr><td colspan="4" style="text-align:center;color:#d32f2f;padding:40px;">
                 <i class="fas fa-exclamation-triangle"></i> Erro ao carregar servidores.
-                <br><small>Verifique se a API está funcionando.</small>
+                <br><small>${error.message}</small>
+                <br><button onclick="testarAPI()" style="margin-top:10px;padding:5px 10px;background:#0b3c5d;color:white;border:none;border-radius:4px;cursor:pointer;">
+                    Testar Conexão
+                </button>
             </td></tr>`;
+        document.getElementById('totalServidores').textContent = '0';
     }
 }
 
 async function carregarEstatisticas() {
+    const url = `${API_BASE}${API_ENDPOINTS.solicitacoes}`;
+    debugLog(`📊 Buscando estatísticas: ${url}`);
+    
     try {
-        // ✅ CORREÇÃO: Caminho relativo
-        const response = await fetch('/api/solicitacoes');
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        debugLog(`📊 Resposta estatísticas: ${response.status} ${response.statusText}`);
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            debugLog('❌ Resposta não é JSON:', text.substring(0, 200));
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
+        
         const result = await response.json();
         
         if (result.success) {
-            document.getElementById('totalSolicitacoes').textContent = result.total || result.dados.length;
+            document.getElementById('totalSolicitacoes').textContent = result.total || result.dados?.length || 0;
             
-            const pendentes = result.dados.filter(s => s.status === 'pendente').length;
+            const pendentes = result.dados?.filter(s => s.status === 'pendente').length || 0;
             document.getElementById('pendentes').textContent = pendentes;
+            
+            debugLog(`✅ Estatísticas: ${result.total} totais, ${pendentes} pendentes`);
+        } else {
+            throw new Error(result.error || 'Erro desconhecido');
         }
     } catch (error) {
-        console.error('Erro ao carregar estatísticas:', error);
+        console.error('❌ Erro ao carregar estatísticas:', error);
+        debugLog(`💥 Erro carregarEstatisticas: ${error.message}`);
+        
         document.getElementById('totalSolicitacoes').textContent = '0';
         document.getElementById('pendentes').textContent = '0';
     }
 }
 
 async function carregarTodasSolicitacoes() {
+    const url = `${API_BASE}${API_ENDPOINTS.solicitacoes}`;
+    debugLog(`📋 Buscando todas solicitações: ${url}`);
+    
     try {
-        // ✅ CORREÇÃO: Caminho relativo
-        const response = await fetch('/api/solicitacoes');
+        const response = await fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        debugLog(`📊 Resposta solicitações: ${response.status} ${response.statusText}`);
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            debugLog('❌ Resposta não é JSON:', text.substring(0, 200));
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
+        
         const result = await response.json();
         
         if (result.success) {
             const tbody = document.querySelector('#tabelaSolicitacoes tbody');
             tbody.innerHTML = '';
 
-            result.dados.sort((a, b) => new Date(b.dataCriacao) - new Date(a.dataCriacao));
+            if (result.dados && result.dados.length > 0) {
+                // Ordenar por data mais recente
+                result.dados.sort((a, b) => new Date(b.dataCriacao || b.created_at) - new Date(a.dataCriacao || a.created_at));
 
-            result.dados.forEach(solicitacao => {
-                const tr = document.createElement('tr');
-                
-                let statusClass = '';
-                let statusIcon = '';
-                
-                switch(solicitacao.status) {
-                    case 'pendente':
-                        statusClass = 'pendente';
-                        statusIcon = '⏳';
-                        break;
-                    case 'em_analise':
-                        statusClass = 'analise';
-                        statusIcon = '🔍';
-                        break;
-                    case 'atendida':
-                        statusClass = 'atendida';
-                        statusIcon = solicitacao.resultado === 'deferido' ? '✅' : '❌';
-                        break;
-                }
+                result.dados.forEach(solicitacao => {
+                    const tr = document.createElement('tr');
+                    
+                    let statusClass = '';
+                    let statusIcon = '';
+                    
+                    switch(solicitacao.status) {
+                        case 'pendente':
+                            statusClass = 'pendente';
+                            statusIcon = '⏳';
+                            break;
+                        case 'em_analise':
+                            statusClass = 'analise';
+                            statusIcon = '🔍';
+                            break;
+                        case 'atendida':
+                            statusClass = 'atendida';
+                            statusIcon = solicitacao.resultado === 'deferido' ? '✅' : '❌';
+                            break;
+                        default:
+                            statusClass = 'pendente';
+                            statusIcon = '❓';
+                    }
 
-                tr.innerHTML = `
-                    <td><strong>${solicitacao.numero || solicitacao.id}</strong></td>
-                    <td>${solicitacao.tipo}</td>
-                    <td>${solicitacao.nome}</td>
-                    <td>${new Date(solicitacao.dataCriacao).toLocaleDateString('pt-BR')}</td>
-                    <td><span class="status ${statusClass}">${statusIcon} ${solicitacao.status}</span></td>
-                    <td>${solicitacao.servidorResponsavel || '-'}</td>
-                `;
-                tbody.appendChild(tr);
-            });
+                    tr.innerHTML = `
+                        <td><strong>${solicitacao.numero || solicitacao.id || 'N/A'}</strong></td>
+                        <td>${solicitacao.tipo || 'Não informado'}</td>
+                        <td>${solicitacao.nome || 'Não informado'}</td>
+                        <td>${solicitacao.dataCriacao ? new Date(solicitacao.dataCriacao).toLocaleDateString('pt-BR') : 'N/A'}</td>
+                        <td><span class="status ${statusClass}">${statusIcon} ${solicitacao.status || 'pendente'}</span></td>
+                        <td>${solicitacao.servidorResponsavel || solicitacao.servidor_responsavel || '-'}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                debugLog(`✅ ${result.dados.length} solicitações carregadas`);
+            } else {
+                tbody.innerHTML = `
+                    <tr><td colspan="6" style="text-align:center;color:#666;padding:40px;">
+                        <i class="fas fa-inbox"></i> Nenhuma solicitação encontrada.
+                    </td></tr>`;
+            }
+        } else {
+            throw new Error(result.error || 'Erro desconhecido');
         }
     } catch (error) {
-        console.error('Erro ao carregar solicitações:', error);
+        console.error('❌ Erro ao carregar solicitações:', error);
+        debugLog(`💥 Erro carregarTodasSolicitacoes: ${error.message}`);
+        
         document.querySelector('#tabelaSolicitacoes tbody').innerHTML = `
-            <tr><td colspan="6" style="text-align:center;color:#666;padding:40px;">
+            <tr><td colspan="6" style="text-align:center;color:#d32f2f;padding:40px;">
                 <i class="fas fa-exclamation-triangle"></i> Erro ao carregar solicitações.
+                <br><small>${error.message}</small>
             </td></tr>`;
     }
 }
@@ -575,15 +781,24 @@ async function adicionarServidor() {
         return;
     }
 
+    const url = `${API_BASE}${API_ENDPOINTS.servidores}`;
+    debugLog(`➕ Adicionando servidor: ${ri} - ${nome}`);
+    
     try {
-        // ✅ CORREÇÃO: Caminho relativo
-        const response = await fetch('/api/servidores', {
+        const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({ nome, ri, senha })
         });
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
         
         const result = await response.json();
         
@@ -592,18 +807,22 @@ async function adicionarServidor() {
             document.getElementById('riServidor').value = '';
             document.getElementById('senhaServidor').value = '';
 
+            successMsg.textContent = 'Servidor cadastrado com sucesso!';
             successMsg.style.display = 'block';
             setTimeout(() => {
                 successMsg.style.display = 'none';
             }, 3000);
 
             await carregarServidores();
+            debugLog(`✅ Servidor ${ri} adicionado com sucesso`);
         } else {
             alert('Erro ao cadastrar servidor: ' + (result.error || 'Erro desconhecido'));
+            debugLog(`❌ Erro ao adicionar servidor: ${result.error}`);
         }
     } catch (error) {
-        alert('Erro de conexão com o servidor.');
+        alert('Erro de conexão com o servidor: ' + error.message);
         console.error(error);
+        debugLog(`💥 Erro adicionarServidor: ${error.message}`);
     }
 }
 
@@ -621,24 +840,36 @@ async function editarServidor(id, nomeAtual, riAtual) {
         dados.senha = novaSenha;
     }
 
+    const url = `${API_BASE}${API_ENDPOINTS.servidores}/${id}`;
+    debugLog(`✏️ Editando servidor ${id}: ${novoRI}`);
+    
     try {
-        // ✅ CORREÇÃO: Caminho relativo
-        const response = await fetch(`/api/servidores/${id}`, {
+        const response = await fetch(url, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(dados)
         });
         
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
+        
         const result = await response.json();
         if (result.success) {
             alert('Servidor atualizado com sucesso!');
             await carregarServidores();
+            debugLog(`✅ Servidor ${id} atualizado`);
         } else {
             alert('Erro ao atualizar: ' + result.error);
+            debugLog(`❌ Erro ao editar servidor: ${result.error}`);
         }
     } catch (error) {
-        alert('Erro de conexão.');
+        alert('Erro de conexão: ' + error.message);
         console.error(error);
+        debugLog(`💥 Erro editarServidor: ${error.message}`);
     }
 }
 
@@ -647,24 +878,83 @@ async function excluirServidor(id) {
         return;
     }
 
+    const url = `${API_BASE}${API_ENDPOINTS.servidores}/${id}`;
+    debugLog(`🗑️ Excluindo servidor ${id}`);
+    
     try {
-        // ✅ CORREÇÃO: Caminho relativo
-        const response = await fetch(`/api/servidores/${id}`, {
+        const response = await fetch(url, {
             method: 'DELETE'
         });
+        
+        // Verificar se a resposta é JSON
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`API retornou ${response.status}: ${text.substring(0, 100)}...`);
+        }
         
         const result = await response.json();
         if (result.success) {
             alert('Servidor excluído com sucesso!');
             await carregarServidores();
+            debugLog(`✅ Servidor ${id} excluído`);
         } else {
             alert('Erro ao excluir: ' + result.error);
+            debugLog(`❌ Erro ao excluir servidor: ${result.error}`);
         }
     } catch (error) {
-        alert('Erro de conexão.');
+        alert('Erro de conexão: ' + error.message);
         console.error(error);
+        debugLog(`💥 Erro excluirServidor: ${error.message}`);
     }
 }
+
+// Função para testar a API
+async function testarAPI() {
+    debugLog('🧪 Testando conexão com API...');
+    
+    const endpoints = [
+        { name: 'Servidores', url: `${API_BASE}${API_ENDPOINTS.servidores}` },
+        { name: 'Solicitações', url: `${API_BASE}${API_ENDPOINTS.solicitacoes}` }
+    ];
+    
+    for (const endpoint of endpoints) {
+        try {
+            const response = await fetch(endpoint.url);
+            const contentType = response.headers.get('content-type');
+            const isJson = contentType && contentType.includes('application/json');
+            const text = await response.text();
+            
+            debugLog(`${endpoint.name}: ${response.status} ${response.statusText}`);
+            debugLog(`Content-Type: ${contentType}`);
+            debugLog(`É JSON? ${isJson}`);
+            debugLog(`Resposta (primeiros 200 chars): ${text.substring(0, 200)}`);
+            
+            if (response.ok && isJson) {
+                debugLog(`✅ ${endpoint.name} OK!`);
+            } else {
+                debugLog(`❌ ${endpoint.name} com problemas`);
+            }
+        } catch (error) {
+            debugLog(`💥 Erro testando ${endpoint.name}: ${error.message}`);
+        }
+    }
+}
+
+// Adicionar botão de debug no painel (opcional)
+document.addEventListener('DOMContentLoaded', function() {
+    const debugButton = document.createElement('button');
+    debugButton.innerHTML = '<i class="fas fa-bug"></i> Debug';
+    debugButton.style.cssText = 'position:fixed;bottom:10px;left:10px;padding:8px 12px;background:#333;color:#0f0;border:none;border-radius:4px;cursor:pointer;z-index:9999;font-size:12px;';
+    debugButton.onclick = function() {
+        const debugDiv = document.getElementById('debugConsole');
+        if (debugDiv) {
+            debugDiv.style.display = debugDiv.style.display === 'none' ? 'block' : 'none';
+        }
+        testarAPI();
+    };
+    document.body.appendChild(debugButton);
+});
 
 const style = document.createElement('style');
 style.textContent = `
@@ -686,8 +976,21 @@ style.textContent = `
         background: #d4edda;
         color: #155724;
     }
+    #debugConsole {
+        font-family: monospace;
+        max-width: 400px;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    #debugConsole div {
+        border-bottom: 1px solid #444;
+        padding: 2px 0;
+        word-break: break-all;
+    }
 `;
+document.head.appendChild(style);
 document.head.appendChild(style);
 </script>
 </body>
 </html>
+
