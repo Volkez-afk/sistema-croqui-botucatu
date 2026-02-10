@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY
+const supabaseKey = process.env.SUPABASE_ANON_KEY // CORREÇÃO: SUPABASE_ANON_KEY em vez de SUPABASE_KEY
 
 // Verificação para ajudar no debug
 if (!supabaseUrl || !supabaseKey) {
