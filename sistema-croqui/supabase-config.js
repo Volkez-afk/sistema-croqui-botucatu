@@ -1,13 +1,21 @@
-// Configuração do Supabase
-// As chaves são carregadas SEGURAMENTE das variáveis de ambiente do Vercel
+// supabase-config.js
 import { createClient } from '@supabase/supabase-js'
 
+// Carrega do ambiente do Vercel
 const supabaseUrl = process.env.SUPABASE_URL
-const supabaseKey = process.env.SUPABASE_ANON_KEY // CORREÇÃO: SUPABASE_ANON_KEY em vez de SUPABASE_KEY
+const supabaseKey = process.env.SUPABASE_ANON_KEY
 
-// Verificação para ajudar no debug
+console.log('🔄 Inicializando Supabase...')
+console.log('URL presente:', !!supabaseUrl)
+console.log('Key presente:', !!supabaseKey)
+
 if (!supabaseUrl || !supabaseKey) {
-    console.error('Erro: SUPABASE_URL ou SUPABASE_ANON_KEY não estão definidas.');
+  console.error('❌ ERRO CRÍTICO: Variáveis do Supabase não encontradas!')
+  console.error('Verifique no Vercel Dashboard:')
+  console.error('1. Settings > Environment Variables')
+  console.error('2. Adicione SUPABASE_URL e SUPABASE_ANON_KEY')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const supabase = createClient(supabaseUrl || '', supabaseKey || '', {
+  auth: { persistSession: false }
+})
