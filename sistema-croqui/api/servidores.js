@@ -1,6 +1,9 @@
 import { supabase } from '../supabase-config.js'
 
 export default async function handler(req, res) {
+  // 🔧 ADICIONADO: Log para debug
+  console.log(`📦 API Servidores - ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  
   // Configurar CORS (igual aos outros arquivos API)
   res.setHeader('Access-Control-Allow-Credentials', true)
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -21,6 +24,8 @@ export default async function handler(req, res) {
   // GET: Listar todos os servidores ou um específico
   if (req.method === 'GET') {
     try {
+      console.log('🔄 Buscando servidores...');
+      
       // Se tem ID na URL, buscar servidor específico
       if (idFromPath) {
         const { data, error } = await supabase
@@ -30,12 +35,14 @@ export default async function handler(req, res) {
           .single()
 
         if (error || !data) {
+          console.error('❌ Servidor não encontrado:', error);
           return res.status(404).json({ 
             success: false, 
             error: 'Servidor não encontrado' 
           })
         }
 
+        console.log('✅ Servidor encontrado:', data.id);
         return res.status(200).json({ 
           success: true, 
           dados: data 
@@ -49,13 +56,14 @@ export default async function handler(req, res) {
         .order('nome', { ascending: true })
 
       if (error) {
-        console.error('Erro ao buscar servidores:', error)
+        console.error('❌ Erro ao buscar servidores:', error);
         return res.status(500).json({ 
           success: false, 
           error: error.message 
         })
       }
 
+      console.log(`✅ ${data.length} servidores encontrados`);
       return res.status(200).json({ 
         success: true, 
         total: data.length,
@@ -63,7 +71,7 @@ export default async function handler(req, res) {
       })
 
     } catch (error) {
-      console.error('Erro interno no GET:', error)
+      console.error('💥 Erro interno no GET:', error);
       return res.status(500).json({ 
         success: false, 
         error: 'Erro interno do servidor' 
@@ -75,6 +83,8 @@ export default async function handler(req, res) {
   if (req.method === 'POST') {
     try {
       const { ri, nome, senha } = req.body
+      
+      console.log('🔄 Criando novo servidor:', { ri, nome });
 
       // Validações básicas
       if (!ri || !nome || !senha) {
@@ -99,6 +109,7 @@ export default async function handler(req, res) {
         .single()
 
       if (existing) {
+        console.log('⚠️ RI já cadastrado:', ri);
         return res.status(409).json({ 
           success: false, 
           error: 'RI já está cadastrado' 
@@ -121,13 +132,14 @@ export default async function handler(req, res) {
         .select('id, ri, nome, data_criacao')
 
       if (error) {
-        console.error('Erro ao criar servidor:', error)
+        console.error('❌ Erro ao criar servidor:', error);
         return res.status(500).json({ 
           success: false, 
           error: error.message 
         })
       }
 
+      console.log('✅ Servidor criado:', data[0].id);
       return res.status(201).json({ 
         success: true, 
         servidor: data[0],
@@ -135,7 +147,7 @@ export default async function handler(req, res) {
       })
 
     } catch (error) {
-      console.error('Erro interno no POST:', error)
+      console.error('💥 Erro interno no POST:', error);
       return res.status(500).json({ 
         success: false, 
         error: 'Erro interno do servidor' 
@@ -154,6 +166,8 @@ export default async function handler(req, res) {
           error: 'ID do servidor é obrigatório' 
         })
       }
+
+      console.log('🔄 Atualizando servidor:', servidorId);
 
       const { ri, nome, senha } = req.body
       const updates = {}
@@ -188,6 +202,7 @@ export default async function handler(req, res) {
           .single()
 
         if (existing) {
+          console.log('⚠️ Novo RI já em uso:', updates.ri);
           return res.status(409).json({ 
             success: false, 
             error: 'Novo RI já está em uso por outro servidor' 
@@ -204,7 +219,7 @@ export default async function handler(req, res) {
         .select('id, ri, nome, data_criacao')
 
       if (error) {
-        console.error('Erro ao atualizar servidor:', error)
+        console.error('❌ Erro ao atualizar servidor:', error);
         return res.status(500).json({ 
           success: false, 
           error: error.message 
@@ -212,12 +227,14 @@ export default async function handler(req, res) {
       }
 
       if (!data || data.length === 0) {
+        console.error('❌ Servidor não encontrado para atualizar:', servidorId);
         return res.status(404).json({ 
           success: false, 
           error: 'Servidor não encontrado' 
         })
       }
 
+      console.log('✅ Servidor atualizado:', servidorId);
       return res.status(200).json({ 
         success: true, 
         servidor: data[0],
@@ -225,7 +242,7 @@ export default async function handler(req, res) {
       })
 
     } catch (error) {
-      console.error('Erro interno no PUT:', error)
+      console.error('💥 Erro interno no PUT:', error);
       return res.status(500).json({ 
         success: false, 
         error: 'Erro interno do servidor' 
@@ -245,6 +262,8 @@ export default async function handler(req, res) {
         })
       }
 
+      console.log('🔄 Excluindo servidor:', servidorId);
+
       // Primeiro verificar se existe
       const { data: existing } = await supabase
         .from('servidores')
@@ -253,6 +272,7 @@ export default async function handler(req, res) {
         .single()
 
       if (!existing) {
+        console.error('❌ Servidor não encontrado para exclusão:', servidorId);
         return res.status(404).json({ 
           success: false, 
           error: 'Servidor não encontrado' 
@@ -267,6 +287,7 @@ export default async function handler(req, res) {
         .limit(1)
 
       if (solicitacoes && solicitacoes.length > 0) {
+        console.log('⚠️ Servidor tem solicitações:', servidorId);
         return res.status(400).json({ 
           success: false, 
           error: 'Não é possível excluir servidor com solicitações atribuídas' 
@@ -279,20 +300,21 @@ export default async function handler(req, res) {
         .eq('id', servidorId)
 
       if (error) {
-        console.error('Erro ao excluir servidor:', error)
+        console.error('❌ Erro ao excluir servidor:', error);
         return res.status(500).json({ 
           success: false, 
           error: error.message 
         })
       }
 
+      console.log('✅ Servidor excluído:', servidorId);
       return res.status(200).json({ 
         success: true,
         mensagem: 'Servidor excluído com sucesso' 
       })
 
     } catch (error) {
-      console.error('Erro interno no DELETE:', error)
+      console.error('💥 Erro interno no DELETE:', error);
       return res.status(500).json({ 
         success: false, 
         error: 'Erro interno do servidor' 
@@ -301,6 +323,7 @@ export default async function handler(req, res) {
   }
 
   // Método não suportado
+  console.warn('⚠️ Método não permitido:', req.method);
   return res.status(405).json({ 
     success: false, 
     error: 'Método não permitido' 
