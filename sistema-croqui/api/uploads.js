@@ -9,6 +9,9 @@ export const config = {
 }
 
 export default async function handler(req, res) {
+  // 🔧 ADICIONADO: Log para debug
+  console.log(`📤 Upload - ${req.method} ${req.url} - ${new Date().toISOString()}`);
+  
   res.setHeader('Access-Control-Allow-Credentials', true)
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS')
@@ -19,13 +22,17 @@ export default async function handler(req, res) {
   }
 
   if (req.method !== 'POST') {
+    console.warn('⚠️ Método não permitido:', req.method);
     return res.status(405).json({ success: false, error: 'Método não permitido' })
   }
 
   try {
     const { filename, fileContent } = req.body
 
+    console.log('🔄 Processando upload:', filename);
+
     if (!filename || !fileContent) {
+      console.log('❌ Campos obrigatórios faltando');
       return res.status(400).json({ success: false, error: 'Nome do arquivo e conteúdo são obrigatórios' })
     }
 
@@ -35,6 +42,8 @@ export default async function handler(req, res) {
     
     const caminhoArquivo = `comprovantes/${Date.now()}-${filename.replace(/[^a-zA-Z0-9.-]/g, '_')}`
     
+    console.log('📁 Enviando para bucket:', caminhoArquivo);
+    
     const { data, error } = await supabase.storage
       .from('pdfs-croqui')
       .upload(caminhoArquivo, buffer, {
@@ -43,7 +52,7 @@ export default async function handler(req, res) {
       })
 
     if (error) {
-      console.error('Erro no upload para o Supabase Storage:', error)
+      console.error('❌ Erro no upload para o Supabase Storage:', error);
       return res.status(500).json({ success: false, error: 'Falha no upload do arquivo: ' + error.message })
     }
 
@@ -52,6 +61,7 @@ export default async function handler(req, res) {
       .from('pdfs-croqui')
       .getPublicUrl(data.path)
 
+    console.log('✅ Upload concluído:', publicUrl);
     return res.status(200).json({
       success: true,
       arquivo: {
@@ -63,7 +73,7 @@ export default async function handler(req, res) {
     })
     
   } catch (error) {
-    console.error('Erro interno no upload:', error)
+    console.error('💥 Erro interno no upload:', error);
     return res.status(500).json({ success: false, error: 'Erro interno do servidor durante o upload' })
   }
 }
